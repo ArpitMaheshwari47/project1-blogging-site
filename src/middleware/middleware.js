@@ -1,10 +1,9 @@
 const mongoose = require("mongoose")
 const jwt = require("jsonwebtoken");
 const blogModel = require("../model/blogModel");
+const ObjectId = require('mongoose').Types.ObjectId
 
-const isValidObjectId = (ObjectId) => {
-    return mongoose.Types.ObjectId.isValid(ObjectId)
-}
+
 
 const authentication = async function (req, res, next) {
     try {
@@ -12,8 +11,7 @@ const authentication = async function (req, res, next) {
 
         if (!token) token = req.headers["x-api-key"];
 
-        // TOKEN IS NOT PRESENT 
-        if (!token)
+             if (!token)             // TOKEN IS NOT PRESENT 
             return res.status(400).send({
                 status: false,
                 msg: "Token Is Not Present",
@@ -21,15 +19,11 @@ const authentication = async function (req, res, next) {
 
         let decodedToken = jwt.verify(token, "project_1")
 
-        // TOKEN IS INVALID
-        if (!decodedToken)
+        if (!decodedToken)      // TOKEN IS INVALID
             return res.status(401).send({
                 status: false,
                 msg: "token is invalid"
             })
-
-        req["x-api-key"] = req.headers["x-api-key"]
-        req["authorId"] = decodedToken.authorId
 
         next();
     }
@@ -41,72 +35,118 @@ const authentication = async function (req, res, next) {
     }
 };
 
-const authorization = async function (req, res, next) {
+
+const authCreateBlog = async function (req, res, next) {
+
     try {
-        let Inuser = req.authorId
-        console.log(Inuser)
+        // check if token key is present in the header
+        let token = req.headers["x-Api-key"];  
+        if (!token) token = req.headers["x-api-key"]; //convert key to small case because it will only accept smallcase
 
-        let authorlogging;
+        // Checking if the token is creted using the secret key provided and decode it.
+        let decodedToken = jwt.verify(token, "project_1"); 
 
-        // original code
-        // if (req.body.authorId) {
+        //---------------Authorisation
+        let userToBeModified = req.body.authorId //storing the authorid entered in the request/postman body in a variable
+        let userLoggedIn = decodedToken.authorId // storing the authorid from decoded token in a variable
 
-        if (req.body.hasOwnProperty("authorId")) {
-
-            if (!isValidObjectId(req.body.authorId))
-
-                return res.status(400).send({
-                    status: false,
-                    msg: "Enter valid authorId"
-                })
-
-            authorlogging = req.body.authorId
-        }
-        else if (req.params.hasOwnProperty("blogId")) {
-
-            if (!isValidObjectId(req.params.blogId))
-
-                return res.status(400).send({
-                    status: false,
-                    msg: "Enter valid blogId"
-                })
-
-            let blogData1 = await blogModel.findById(req.params.blogId)
-
-            if (!blogData1) {
-
-                return res.status(404).send({
-                    status: false,
-                    msg: "please check Blog id"
-                })
-            }
-
-            authorlogging = blogData1.authorId.toString()
-        }
-        if (!authorlogging)
-
-            return res.status(400).send({
-                status: false,
-                msg: "AuthorId is required"
-            })
-        // Authorisation: authorId in token is compared with authorId against blogId
-
-        if (Inuser !== authorlogging) {
-
-            return res.status(403).send({
-                status: false,
-                msg: "Authorisation Failed!"
-            });
-        }
+        //authorId comparision to check if the logged-in user is requesting for their own data.
+        if (userToBeModified != userLoggedIn) //compared if enterd authorid and decoded token authorid is same or not
+        return res.status(403).send({ status: false, msg: 'Not Authorized. User logged is not allowed to modify the requested users data' })
+ 
         next()
     }
+
     catch (err) {
-        return res.status(500).send({
-            status: false,
-            data: err.message
-        })
+        res.status(500).send({ msg: "Serverside Errors. Please try again later", error: err.message })
     }
-};
+
+}
+
+
+const authUpdateDelete = async function (req, res, next) {
+
+    try {
+        //-------token check--------
+
+        // check if token key is present in the header/cookies
+        let token = req.headers["x-Api-key"];
+        if (!token) token = req.headers["x-api-key"]; //convert key to small case because it will only accept smallcase
+
+        // Checking if the token is creted using the secret key provided and decode it.
+        let decodedToken = jwt.verify(token, "project_1");
+
+        //Checking if the entered blog id in params/url is valid nor not
+        let enteredBlogId = req.params.blogId
+        if (!ObjectId.isValid(enteredBlogId)) {
+            return res.status(400).send({ status: false, msg: "Bad Request. BlogId invalid" })
+        }
+
+        // checking if the author trying to modify the documents belongs to his or not 
+        const searchBlog = await blogModel.findById(enteredBlogId)
+        if (!searchBlog) {  //check if document is present in DB, iif not found anything return error
+            return res.status(404).send({ status: false, msg: "Page/Resource not found. Enter valid blog id" })
+        }
+
+        let userToBeModified = searchBlog.authorId //storing the authorid from the blog document found by making the db call
+        let userLoggedIn = decodedToken.authorId // storing the authorid from decoded token in a variable
+
+        if (userToBeModified != userLoggedIn) {//comparing if authorid found from searched ddb blog document and decoded token authorid is same or not
+            return res.status(403).send({ status: false, msg: 'Not Authorized. User logged is not allowed to modify the requested users data' })
+        }
+        if (searchBlog.isDeleted == true) {  //check if the document is already deleted
+            return res.status(404).send({ status: false, msg: "Page/Resource not found. Blog Document doesnot exist. Already deleted" })
+        }
+
+
+        next()
+    }
+
+    catch (err) {
+        res.status(500).send({ msg: "Serverside Errors. Please try again later", error: err.message })
+    }
+
+}
+
+const authDeleteByParams = async function (req, res, next) {
+
+    try {
+
+        let token = req.headers["x-Api-key"];
+        if (!token) token = req.headers["x-api-key"];
+
+        let decodedToken = jwt.verify(token, "project_1");
+        
+        let data = req.query
+        let authorId = data.authorId
+        let userLoggedIn = decodedToken.authorId
+
+        //checking if entered filter is empty. If empty instead of deleting all docs, send an error message
+        if (Object.keys(data).length === 0) {
+            return res.status(400).send({ status: false, msg: 'Bad Request. Please enter valid condition' })
+        }
+        if(("authorId" in data)&&(!ObjectId.isValid(authorId))){
+            return res.status(400).send({ status: false, msg: "Bad Request. AuthorId invalid" })
+        }
+        if(("authorId" in data)&&(authorId != userLoggedIn)){
+            return res.status(403).send({status:false, msg:'Not Authorised. You cannot delete this'})
+        }
+        
+       
+
+        next()
+    }
+
+    catch (err) {
+        res.status(500).send({ msg: "Serverside Errors. Please try again later", error: err.message })
+    }
+
+}
+
+  
 
 module.exports.authentication = authentication
-module.exports.authorization = authorization
+module.exports.authCreateBlog = authCreateBlog
+module.exports.authUpdateDelete = authUpdateDelete
+module.exports.authDeleteByParams= authDeleteByParams
+

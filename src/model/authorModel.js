@@ -24,11 +24,6 @@ const author = new mongoose.Schema({
         required: true,
         trim: true,
         lowercase:true,
-        validate:{
-            validator: function (email){
-                return (!(/^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/.test(email) ))
-            },message: "Special Symbols Required", isAsync: false,
-        }
     },
     password:{
         type: String,

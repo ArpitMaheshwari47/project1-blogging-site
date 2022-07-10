@@ -7,25 +7,25 @@ const middleware = require("../middleware/middleware")
 
 
 // AUTHOR CREATE
-router.post("/authors", authors.createAuthor) //no need to enter token
+router.post("/authors", authors.createAuthor)
 
 // LOGIN AUTHOR
-router.post("/login", authors.loginAuthor) //no need to enter token
+router.post("/login", authors.loginAuthor)
 
 // BLOG CONTROLLER
-router.post("/blogs", blogs.createBlog) //no need to enter token
+router.post("/blogs",middleware.authentication,middleware.authCreateBlog, blogs.createBlog)
 
 // GET BLOG
 router.get("/blogs", middleware.authentication, blogs.getBlog)
 
 // UPDATE BLOG
-router.put("/blogs/:blogId", middleware.authentication, middleware.authorization,  blogs.updateBlog)
+router.put("/blogs/:blogId", middleware.authentication, middleware. authUpdateDelete, blogs.updateBlog)
 
 // DELETE BLOG
-router.delete("/deleteBlog/:blogId", middleware.authentication,middleware.authorization, blogs.deleteBlog)
+router.delete("/deleteBlog/:blogId", middleware.authentication,middleware. authUpdateDelete, blogs.deleteBlog)
 
 // DELETE BLOG BY PARAMS
-router.delete("/blogs", middleware.authentication, blogs.deleteBlogsQueryParams)
+router.delete("/blogs", middleware.authentication,middleware.authDeleteByParams, blogs.deleteBlogsQueryParams)
 
 
 

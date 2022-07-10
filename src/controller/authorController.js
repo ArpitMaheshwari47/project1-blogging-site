@@ -1,149 +1,111 @@
+const mongoose = require("mongoose")
 const authorModel = require("../model/authorModel")
 const jwt = require("jsonwebtoken");
 
 
-    // make a function for validation for the fname,lname,title in the author
-    // By TA
-    const isValid = function (value) {
-      if (typeof value === "undefined" || value === null) return false
-      if (typeof value === "string" && value.trim().length === 0) return false
-      return true
-    }
+// make a function for validation for the fname,lname,title in the author
 
-    const isValidTitle = function (title) {
-      return ["Mr", "Mrs", "Miss"].indexOf(title) !== -1
-    }
+const isValid = function (value) {
+  if (typeof value === "undefined" || value === Number || value === null) return false
+  if (typeof value === "string" && value.trim().length === 0) return false
+  return true
+}
 
-    const isValidRequestBody = function (data) {
-      return Object.keys(requestBody).length > 0
-    }
-    
 
 // CREATE AUTHOR
 const createAuthor = async function (req, res) {
   try {
-
     let data = req.body
-    if (!isValidRequestBody(data) ) {
-      return res.status(400).send({ msg: "Please provide blog details" })
+
+    if (Object.keys(data).length == 0) {
+      return res.status(400).send({status:false, msg: "Please provide blog details" })
     }
 
-    const {fname, lname, title, email, password} = data
     // ALL THE EDGE CASES ARE HERE FOR THE CREATE AUTHOR
 
-    if (!isValid(fname)) {
-      return res.status(400).send({ status: false, msg: "please Enter Valid first name" })
+    if (!isValid(data.fname)) {
+      return res.status(400).send({ status: false, msg: "please Enter fName(required field)" })
+    }
+    if (!isValid(data.lname)) {
+      return res.status(400).send({ status: false, msg: "please Enter lName(required field)" })
+    }
+    if (!isValid(data.title)) {
+      return res.status(400).send({ status: false, msg: "please Enter Title(required field)" })
     }
 
-    if (!isValid(lname)) {
-      return res.status(400).send({ status: false, msg: "please Enter Valid last name" })
+
+    // EMAIL DUPLICAY AND SYNTAX OF IT 
+
+    if (!(/^\w+([\.-]?\w+)@\w+([\.-]?\w+)(\.\w{2,3})+$/.test(data.email))) {
+      return res.status(400).send({ status: false, msg: "please Enter Valid Email" })
     }
 
-    if (!isValid(title)) {
-      return res.status(400).send({ status: false, msg: "please Enter Valid Title" })
-    }
-    
-    if (!isValidTitle(title)) {
-      return res.status(400).send({ status: false, msg: "title should be Mr Mrs Miss" })
-    }
-
-    if (!isValid(email)) {
-      return res.status(400).send({ status: false, msg: "email is required" })
-    }
-
-    if (!(/^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/.test(email))) {
-      return res.status(400).send({ status: false, msg: "email should be Valid Email" })
-    }
-
-    const isEmailPresent = await authorModel.findOne({ email:email })
+    const isEmailPresent = await authorModel.findOne({ email: data.email })
 
     if (isEmailPresent) {
-      return res.status(400).send({
-        status: false,
-        msg: "EmailId Is Already Exist In DB"
-      })
+      return res.status(400).send({ status: false, msg: "EmailId Is Already Exist In DB" })
     }
 
-    if (!isValid(password)) {
-      return res.status(400).send({ status: false, msg: " Please enter password" });
+    // password validation
+    if (!data.password) {
+      return res
+        .status(400)
+        .send({ status: false, msg: " Please enter password(required field)" });
     }
 
     // create author
-    
-    const authorData = {fname, lname, title, email, password}
-    const savedData = await authorModel.create(authorData)
+    const savedData = await authorModel.create(data)
     return res.status(200).send({ data: savedData })
   }
+
   catch (err) {
-    return res.status(500).send({
-      status: false,
-      data: err.message
-    })
+    return res.status(500).send({ status: false, data: err.message })
   }
 
 }
 
 // LOGIN AUTHOR ==========================
 const loginAuthor = async function (req, res) {
-
   try {
-
-    let data = req.body
-    if (!isValidRequestBody(data) ) {
-      return res.status(400).send({ msg: "Please provide blog details" })
-    }
-
+    // req.body.email is used in postman it can be change both sides
     let email = req.body.email
     let password = req.body.password
-
-
-    if (!isValid(email)) {
-      return res.status(400).send({ status: false, msg: "email is required" })
-    }
-
-    if (!(/^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/.test(email))) {
-      return res.status(400).send({ status: false, msg: "email should be Valid Email" })
-    }
-    // req.body.email is used in postman it can be change both sides
 
     let user = await authorModel.findOne({
       email: email,
       password: password
     })
 
-
     if (!user) return res.status(400).send({
       status: false,
-      msg: " username or password is incorrect "
+      msg: " Email or password is incorrect "
     })
 
 
     // AUTHENTICATION BEGINS HERE===================
 
     let token = jwt.sign({
-      // provide the things which are unique like object id
-      authorId: user._id.toString(),
-      iat :Math.floor(Date.now() / 1000),
-      exp :Math.floor(Date.now() / 1000) + 10*60*60,
+      authorId: user._id.toString(),     // provide the things which are unique like object id
       batch: "Radon",
     },
-      "project_1"   // =============>   secret key 
-    );
-
-    res.header('x-api-key' , token)
-    res.status(200).send({
-      status: true,
-      token: "You Are Login In The App",
-      data: { token }
-    });
-  }
-  catch (err) {
-    return res.status(500).send({ status: false, data0: err.name, data1: err.message })
-  }
+    "project_1"     // secret key 
+  );
+    
+  res.status(200).send({
+    status: true,
+    token: "You Are Login In The App",
+    data: { token: token }
+  });
+}
+catch (err) {
+  return res.status(500).send({ status: false, data: err.message })
+}
 }
 
 module.exports.createAuthor = createAuthor
 module.exports.loginAuthor = loginAuthor
+      
+
 
 
 
